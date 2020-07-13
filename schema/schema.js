@@ -1,5 +1,6 @@
 const graphql = require('graphql');
 const hash = require('bcrypt').hash;
+const jwt = require('jsonwebtoken');
 const secretKey = require('../secret')
 const { GraphQLObjectType, GraphQLString, GraphQLSchema, GraphQLID, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLFloat } = graphql;
 
@@ -25,6 +26,31 @@ const Query = new GraphQLObjectType({
         return { id: result.id, login: result.login, password: null }
       },
     },
+    login: {
+      type: UserType,
+      args: { login: { type: GraphQLString }, password: { type: GraphQLString } },
+      async resolve( parent, { login, password } ) {
+        const user = await User.find({ login });
+        if (!user) {
+          throw new Error('User does not exist!');
+        }
+
+        const isEqual = await bcrypt.compare(password, user.password);
+        if (!isEqual) {
+          throw new Error('Password is incorrect!');
+        }
+
+        const token = jwt.sign(
+          { userId: user.id, email: user.email },
+          secretKey,
+          {
+            expiresIn: '1h'
+          }
+        );
+
+        return { id: user.id, token: token, tokenExpiration: 1 };
+      }
+    }
   }
 });
 
