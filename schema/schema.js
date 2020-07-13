@@ -1,33 +1,33 @@
-const graphql = require( 'graphql' );
-
+const graphql = require('graphql');
+const hash = require('bcrypt').hash;
+const secretKey = require('../secret')
 const { GraphQLObjectType, GraphQLString, GraphQLSchema, GraphQLID, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLFloat } = graphql;
 
-const User = require( '../models/user' );
+const User = require('../models/user');
 
-const UserType = new GraphQLObjectType( {
+const UserType = new GraphQLObjectType({
   name: 'User',
   fields: () => ({
     id: { type: GraphQLID },
     login: { type: GraphQLString },
     password: { type: GraphQLString },
-    name: { type: GraphQLString },
   }),
-} );
+});
 
-const Query = new GraphQLObjectType( {
+const Query = new GraphQLObjectType({
   name: 'Query',
   fields: {
     user: {
       type: UserType,
       args: { id: { type: GraphQLID } },
       resolve( parent, { id } ) {
-        return User.findById( id );
+        return User.findById(id);
       },
     },
   }
-} );
+});
 
-const Mutation = new GraphQLObjectType( {
+const Mutation = new GraphQLObjectType({
   name: 'Mutation',
   fields: () => ({
     addUser: {
@@ -35,21 +35,32 @@ const Mutation = new GraphQLObjectType( {
       args: {
         login: { type: new GraphQLNonNull(GraphQLString) },
         password: { type: new GraphQLNonNull(GraphQLString) },
-        name: { type: new GraphQLNonNull(GraphQLString) }
       },
-      resolve( parent, { login, password, name } ) {
-        const user = new User( {
-          login,
-          password,
-          name
-        } );
-        return user.save();
+      async resolve( parent, { login, password } ) {
+        try {
+          const existingUser = await User.findOne({ email: login });
+          if ( existingUser ) {
+            throw new Error('User exists already.');
+          }
+          const hashedPassword = await hash(password, 12);
+          const user = new User({
+            login,
+            password: hashedPassword,
+          });
+
+          const result = await user.save()
+
+          return { login: result.login, password: null };
+        } catch (err) {
+          throw err;
+        }
+
       }
     }
   })
-} )
+})
 
-module.exports = new GraphQLSchema( {
+module.exports = new GraphQLSchema({
   query: Query,
   mutation: Mutation
-} );
+});
