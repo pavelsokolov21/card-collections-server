@@ -20,8 +20,9 @@ const Query = new GraphQLObjectType({
     user: {
       type: UserType,
       args: { id: { type: GraphQLID } },
-      resolve( parent, { id } ) {
-        return User.findById(id);
+      async resolve( parent, { id } ) {
+        const result = await User.findById(id);
+        return { id: result.id, login: result.login, password: null }
       },
     },
   }
@@ -38,7 +39,7 @@ const Mutation = new GraphQLObjectType({
       },
       async resolve( parent, { login, password } ) {
         try {
-          const existingUser = await User.findOne({ email: login });
+          const existingUser = await User.find({ login });
           if ( existingUser ) {
             throw new Error('User exists already.');
           }
@@ -48,9 +49,9 @@ const Mutation = new GraphQLObjectType({
             password: hashedPassword,
           });
 
-          const result = await user.save()
+          const result = await user.save();
 
-          return { login: result.login, password: null };
+          return { id: result.id, password: null };
         } catch (err) {
           throw err;
         }
